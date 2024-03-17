@@ -1552,7 +1552,13 @@ Future<void> saveWindowPosition(WindowType type, {int? windowId}) async {
 
   switch (type) {
     case WindowType.Main:
-      isMaximized = await windowManager.isMaximized();
+      // Checking `bind.isIncomingOnly()` is a simple workaround for MacOS.
+      // `await windowManager.isMaximized()` will always return true
+      // if is not resizable. The reason is unknown.
+      //
+      // `windowManager.setResizable(!bind.isIncomingOnly());` in main.dart
+      isMaximized =
+          bind.isIncomingOnly() ? false : await windowManager.isMaximized();
       position = await windowManager.getPosition();
       sz = await windowManager.getSize();
       setFrameIfMaximized();
@@ -3082,25 +3088,26 @@ Color? disabledTextColor(BuildContext context, bool enabled) {
       : Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.6);
 }
 
-// max 200 x 40
-Widget? loadLogo() {
-  bool isFound = true;
-  final image = Image.asset(
-    'assets/logo.png',
-    fit: BoxFit.contain,
-    errorBuilder: (ctx, error, stackTrace) {
-      isFound = false;
-      return Container();
-    },
-  );
-  if (isFound) {
-    return Container(
-      constraints: BoxConstraints(maxWidth: 200, maxHeight: 40),
-      child: image,
-    ).marginOnly(bottom: 10);
-  } else {
-    return null;
-  }
+// max 300 x 60
+Widget loadLogo() {
+  return FutureBuilder<ByteData>(
+      future: rootBundle.load('assets/logo.png'),
+      builder: (BuildContext context, AsyncSnapshot<ByteData> snapshot) {
+        if (snapshot.hasData) {
+          final image = Image.asset(
+            'assets/logo.png',
+            fit: BoxFit.contain,
+            errorBuilder: (ctx, error, stackTrace) {
+              return Container();
+            },
+          );
+          return Container(
+            constraints: BoxConstraints(maxWidth: 300, maxHeight: 60),
+            child: image,
+          ).marginOnly(left: 12, right: 12, top: 12);
+        }
+        return const Offstage();
+      });
 }
 
 Widget loadIcon(double size) {
@@ -3116,12 +3123,17 @@ Widget loadIcon(double size) {
 
 var imcomingOnlyHomeSize = Size(280, 300);
 Size getIncomingOnlyHomeSize() {
-  final magicWidth = Platform.isWindows ? 11.0 : 0.0;
-  final magicHeight = 8.0;
+  final magicWidth = Platform.isWindows ? 11.0 : 2.0;
+  final magicHeight = 10.0;
   return imcomingOnlyHomeSize +
       Offset(magicWidth, kDesktopRemoteTabBarHeight + magicHeight);
 }
 
 Size getIncomingOnlySettingsSize() {
   return Size(768, 600);
+}
+
+bool isInHomePage() {
+  final controller = Get.find<DesktopTabController>();
+  return controller.state.value.selected == 0;
 }
